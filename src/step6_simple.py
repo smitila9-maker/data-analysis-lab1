@@ -1,6 +1,6 @@
 import pandas as pd
 
-input_file = "data/raw/source.csv"  # Имя твоего исходного файла
+input_file = "data/raw/source.csv"  # Имя исходного файла
 output_file = "data/interim/sample_200k.csv"  # Куда сохраним срез
 sample_size = 200_000
 

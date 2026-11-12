@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-# Укажи путь к твоему файлу (замени source.csv на свое имя файла, если оно другое)
+
 file_path = "data/raw/source.csv"
 
 # 1. Размер файла в мегабайтах
