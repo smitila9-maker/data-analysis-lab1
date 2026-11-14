@@ -43,3 +43,30 @@ def print_anomaly_stats(df, mask_iqr, mask_business, mask_intersection):
     print(
         f"Пересечение: {count_intersection} ({count_intersection / total * 100:.2f}%)"
     )
+import time
+
+def mean_loop(values):
+    """Считает среднее с помощью обычного цикла Python (игнорируя NaN)."""
+    total = 0.0
+    count = 0
+    for value in values:
+        if value == value: # Проверка на NaN (пропуск не равен сам себе)
+            total += float(value)
+            count += 1
+    return total / count
+
+def mean_numpy(values):
+    """Считает среднее с помощью NumPy (игнорируя NaN)."""
+    array = np.asarray(values, dtype="float64")
+    return float(np.nanmean(array))
+
+def median_seconds(func, values):
+    """Замеряет время выполнения функции 3 раза и возвращает медиану."""
+    func(values) # Первый прогон (разогрев) не учитывается
+    marks = []
+    for _ in range(3):
+        started = time.perf_counter()
+        func(values)
+        marks.append(time.perf_counter() - started)
+    marks.sort()
+    return marks[1] # Возвращаем медиану (второе значение из трех)
