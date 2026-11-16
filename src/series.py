@@ -99,3 +99,33 @@ def plot_autocorrelation(series):
     best_val = max(acf_values)
     print(f"Лаг с наибольшей автокорреляцией: {best_lag} (значение: {best_val:.3f})")
     return best_lag, best_val
+
+
+def naive_forecasts(series, h, season, k=4):
+    """Считает три наивных прогноза и возвращает ошибки."""
+    train, tail = series[:-h], series[-h:]
+
+    # 1. Последнее значение
+    last = np.repeat(train.iloc[-1], h)
+    # 2. Сезонный прогноз (берем значения того же периода из прошлого цикла)
+    seasonal = train.iloc[-season:].to_numpy()[:h]
+    # 3. Среднее за последние k периодов
+    mean_k = np.repeat(train.iloc[-k:].mean(), h)
+
+    preds = {
+        "Последнее значение": last,
+        "Сезонный наивный прогноз": seasonal,
+        "Среднее за k периодов": mean_k,
+    }
+
+    results = {}
+    for name, pred in preds.items():
+        mae_val = np.mean(np.abs(tail.values - pred))
+        # MAPE считаем только если нет нулей в хвосте
+        if (tail.values != 0).all():
+            mape_val = np.mean(np.abs((tail.values - pred) / tail.values)) * 100
+        else:
+            mape_val = np.nan
+        results[name] = (mae_val, mape_val)
+
+    return tail, preds, results
