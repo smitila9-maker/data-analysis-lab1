@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy.stats import mannwhitneyu, kruskal
 from statsmodels.stats.multitest import multipletests
 from statsmodels.stats.proportion import proportions_ztest
@@ -28,61 +29,73 @@ def bootstrap_median(values, n_boot=2000, seed=42):
     return np.percentile(medians, [2.5, 97.5])
 
 
-def test_hypothesis_1(df, group_a, group_b, target_col="altitude_1"):
-    """Гипотеза 1: Манна-Уитни для двух групп."""
-    a = df[df["origin"] == group_a][target_col].dropna()
-    b = df[df["origin"] == group_b][target_col].dropna()
+def test_hypothesis_1(
+    df,
+    group_a,
+    group_b,
+    group_col="typecode",
+    target_col="altitude_1",
+):
+    """Гипотеза 1: тест Манна-Уитни для двух групп."""
+    a = df.loc[df[group_col] == group_a, target_col].dropna()
+    b = df.loc[df[group_col] == group_b, target_col].dropna()
 
-    stat, p = mannwhitneyu(a, b)
-    # Размер эффекта - разница медиан
-    effect = a.median() - b.median()
-    return p, effect
+    _, p_val = mannwhitneyu(a, b, alternative="two-sided")
+    effect = float(a.median() - b.median())
+    return float(p_val), effect
 
 
-def test_hypothesis_2(df, top_airports, target_col="altitude_1"):
-    """Гипотеза 2: Краскела-Уоллиса и попарные тесты."""
+def test_hypothesis_2(
+    df,
+    categories,
+    group_col="typecode",
+    target_col="altitude_2",
+):
+    """Гипотеза 2: тест Краскела-Уоллиса и попарные тесты Манна-Уитни с поправкой Холма."""
     groups = {
-        name: df[df["origin"] == name][target_col].dropna() for name in top_airports
+        name: df.loc[df[group_col] == name, target_col].dropna() for name in categories
     }
+    _, p_kruskal = kruskal(*groups.values())
 
-    # Общий тест
-    stat, p_kruskal = kruskal(*groups.values())
-
-    # Попарные тесты
-    names = list(groups)
+    names = list(groups.keys())
     pairs = [(a, b) for i, a in enumerate(names) for b in names[i + 1 :]]
-    p_values = []
-    for a, b in pairs:
-        _, p = mannwhitneyu(groups[a], groups[b])
-        p_values.append(p)
+    raw_p = [
+        mannwhitneyu(groups[a], groups[b], alternative="two-sided").pvalue
+        for a, b in pairs
+    ]
 
-    # Поправка Холма
-    reject, adjusted_p, _, _ = multipletests(p_values, method="holm")
-    significant_pairs = sum(reject)
-
-    return p_kruskal, significant_pairs
+    reject, _, _, _ = multipletests(raw_p, method="holm")
+    significant_pairs = int(np.sum(reject))
+    return float(p_kruskal), significant_pairs
 
 
-def test_hypothesis_3(df, date_threshold, target_col="altitude_1"):
-    """Гипотеза 3: z-тест для двух долей (до и после даты)."""
-    import pandas as pd
-    from statsmodels.stats.proportion import proportions_ztest
+def test_hypothesis_3(
+    df,
+    date_threshold,
+    threshold_value=1000.0,
+    target_col="altitude_1",
+    date_col="day",
+):
+    """Гипотеза 3: z-тест для двух долей (до и после выбранной даты)."""
+    ts = pd.Timestamp(date_threshold)
+    temp = df.dropna(subset=[target_col, date_col]).copy()
+    day_series = pd.to_datetime(temp[date_col])
 
-    # Приводим дату к тому же часовому поясу, что и в данных
-    date_threshold = pd.Timestamp(date_threshold, tz="UTC")
+    if day_series.dt.tz is not None and ts.tzinfo is None:
+        ts = ts.tz_localize(day_series.dt.tz)
+    elif day_series.dt.tz is None and ts.tzinfo is not None:
+        ts = ts.tz_convert(None)
 
-    df_temp = df.dropna(subset=[target_col, "day"]).copy()
-    df_temp["is_high"] = (df_temp[target_col] > 1000).astype(int)
+    is_high = (temp[target_col] > threshold_value).astype(int)
+    before = is_high[day_series < ts]
+    after = is_high[day_series >= ts]
 
-    before = df_temp[df_temp["day"] < date_threshold]["is_high"]
-    after = df_temp[df_temp["day"] >= date_threshold]["is_high"]
+    count = [int(after.sum()), int(before.sum())]
+    nobs = [int(len(after)), int(len(before))]
 
-    count = [before.sum(), after.sum()]
-    nobs = [len(before), len(after)]
-
-    stat, p = proportions_ztest(count, nobs)
-    effect = after.mean() - before.mean()
-    return p, effect
+    _, p_val = proportions_ztest(count, nobs, alternative="two-sided")
+    effect = float(after.mean() - before.mean())
+    return float(p_val), effect
 
 
 def plot_correlation_difference(df, numeric_cols):
