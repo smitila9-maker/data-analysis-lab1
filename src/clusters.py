@@ -51,7 +51,7 @@ def elbow_silhouette(X_scaled, k_range=range(2, 11)):
     ax2.set_title("Силуэт")
 
     plt.tight_layout()
-    plt.savefig("../plots/10_clusters_k.png", dpi=150)
+    plt.savefig("../plots/15_clusters_k.png", dpi=150)
     plt.show()
 
     return inertia, silhouette
